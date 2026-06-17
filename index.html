@@ -243,7 +243,7 @@
 
 <script>
 // ============================================================
-// CONFIGURAZIONE SUPABASE (INCOLLA QUI I TUOI DATI)
+// CONFIGURAZIONE SUPABASE
 // ============================================================
 const SUPABASE_URL = "https://rrtpbmdwvgpesqkkdjxr.supabase.co";
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJydHBibWR3dmdwZXNxa2tkanhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjE0ODAsImV4cCI6MjA5NzI5NzQ4MH0.HD8thcDsFSBZPrSQGSdO50wDJGmqtDxTKErJeOx7Xzc";
@@ -252,139 +252,150 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const HEADERS = {
   "apikey": SUPABASE_KEY,
   "Authorization": `Bearer ${SUPABASE_KEY}`,
-  "Content-Type": "application/json",
-  "Prefer": "return=representation"
+  "Content-Type": "application/json"
 };
 
 let currentTorneo = null; 
 let squadreLocali = [];
+let adminPin = null;
 
 function toggleFormatoInfo() {
-  const formato = document.getElementById('newFormato').value;
-  document.getElementById('gironeSelectGroup').style.display = formato === 'UNICO' ? 'none' : 'block';
+  document.getElementById('gironeSelectGroup').style.display = document.getElementById('newFormato').value === 'UNICO' ? 'none' : 'block';
 }
 
-// === API 1: CREA UN NUOVO TORNEO ===
+// === API 1: CREA UN NUOVO TORNEO (VIA RPC) ===
 function creaNuovoTorneo() {
-  const slug = document.getElementById('newSlug').value.trim().toLowerCase();
-  const nome = document.getElementById('newNome').value.trim();
-  const logo = document.getElementById('newLogo').value.trim();
-  const col1 = document.getElementById('newCol1').value.trim();
-  const col2 = document.getElementById('newCol2').value.trim();
-  const formato = document.getElementById('newFormato').value;
-  const pin = document.getElementById('newPin').value.trim();
-  const pinOrg = document.getElementById('newPinOrg').value.trim();
-
-  if(!slug || !nome || !pin || !pinOrg) { showToast("Compila i campi obbligatori (Nome, Codice, e i due PIN)", true); return; }
-
-  const payload = { 
-    slug: slug, nome: nome, logo_url: logo, colore_primario: col1, 
-    colore_secondario: col2, formato: formato, pin_admin: pin, pin_organizzatore: pinOrg 
+  const payload = {
+    p_slug: document.getElementById('newSlug').value.trim().toLowerCase(), 
+    p_nome: document.getElementById('newNome').value.trim(),
+    p_logo_url: document.getElementById('newLogo').value.trim(), 
+    p_col1: document.getElementById('newCol1').value.trim(),
+    p_col2: document.getElementById('newCol2').value.trim(), 
+    p_formato: document.getElementById('newFormato').value,
+    p_pin_admin: document.getElementById('newPin').value.trim(), 
+    p_pin_org: document.getElementById('newPinOrg').value.trim()
   };
+  
+  if(!payload.p_slug || !payload.p_nome || !payload.p_pin_admin || !payload.p_pin_org) { 
+    showToast("Compila i campi obbligatori (Nome, Codice, e i due PIN)", true); return; 
+  }
 
-  fetch(`${SUPABASE_URL}/rest/v1/tornei`, { method: "POST", headers: HEADERS, body: JSON.stringify(payload) })
+  fetch(`${SUPABASE_URL}/rest/v1/rpc/crea_torneo`, { method: "POST", headers: HEADERS, body: JSON.stringify(payload) })
     .then(res => res.json())
     .then(data => {
-      if(data.error || data.message) { showToast("Errore: Codice già esistente o problema server", true); }
-      else {
-        showToast("🚀 Torneo Creato con successo!");
-        document.getElementById('loadSlug').value = slug;
-        document.getElementById('loadPin').value = pin;
-        selezionaTorneo();
+      if(!data.success) { showToast("Errore: Codice già in uso o errore server", true); }
+      else { 
+        showToast("🚀 Torneo Creato con successo!"); 
+        document.getElementById('loadSlug').value = payload.p_slug; 
+        document.getElementById('loadPin').value = payload.p_pin_admin; 
+        selezionaTorneo(); 
       }
     })
     .catch(() => showToast("Errore di connessione", true));
 }
 
-// === API 2: ACCEDI / SELEZIONA UN TORNEO ===
+// === API 2: ACCEDI / SELEZIONA UN TORNEO (VIA RPC) ===
 function selezionaTorneo() {
   const slug = document.getElementById('loadSlug').value.trim().toLowerCase();
   const pin = document.getElementById('loadPin').value.trim();
-
+  
   if(!slug || !pin) { showToast("Inserisci codice torneo e PIN Super-Admin", true); return; }
 
-  fetch(`${SUPABASE_URL}/rest/v1/tornei?slug=eq.${slug}`, { method: "GET", headers: HEADERS })
+  // Verifichiamo il PIN in modo sicuro senza esporre la tabella segreta
+  fetch(`${SUPABASE_URL}/rest/v1/rpc/login_admin`, { method: "POST", headers: HEADERS, body: JSON.stringify({ p_slug: slug, p_pin: pin }) })
     .then(res => res.json())
+    .then(valid => {
+      if(!valid) { showToast("PIN Errato o non hai i permessi di SuperAdmin!", true); return Promise.reject(); }
+      
+      adminPin = pin; // Salviamo temporaneamente in memoria per le future modifiche
+      return fetch(`${SUPABASE_URL}/rest/v1/tornei?slug=eq.${slug}`, { headers: HEADERS });
+    })
+    .then(res => res ? res.json() : null)
     .then(data => {
-      if(data.length === 0) { showToast("Torneo non trovato", true); }
-      else {
-        const torneo = data[0];
-        // Controllo se ha inserito il pin SuperAdmin
-        if(torneo.pin_admin !== pin) { showToast("PIN Errato o non hai i permessi di SuperAdmin!", true); return; }
-        
-        currentTorneo = torneo;
-        popolaCampiImpostazioni();
-        
-        document.getElementById('managedTorneoTitle').textContent = `${torneo.nome.toUpperCase()} (${torneo.formato})`;
-        document.getElementById('gironeSelectGroup').style.display = torneo.formato === 'UNICO' ? 'none' : 'block';
-        
-        document.getElementById('loginScreen').classList.add('hidden');
-        document.getElementById('dashboardScreen').classList.remove('hidden');
-        
-        showToast("Accesso Super-Admin effettuato!");
-        switchAdminTab('squadre');
-      }
-    });
+      if(!data || data.length === 0) return;
+      
+      currentTorneo = data[0]; 
+      popolaCampiImpostazioni();
+      
+      document.getElementById('managedTorneoTitle').textContent = `${currentTorneo.nome.toUpperCase()} (${currentTorneo.formato})`;
+      document.getElementById('gironeSelectGroup').style.display = currentTorneo.formato === 'UNICO' ? 'none' : 'block';
+      document.getElementById('loginScreen').classList.add('hidden'); 
+      document.getElementById('dashboardScreen').classList.remove('hidden');
+      
+      showToast("Accesso Super-Admin effettuato!"); 
+      switchAdminTab('squadre');
+    })
+    .catch(() => {});
 }
 
-function esciDaGestione() {
-  currentTorneo = null;
-  document.getElementById('dashboardScreen').classList.add('hidden');
-  document.getElementById('loginScreen').classList.remove('hidden');
+function esciDaGestione() { 
+  currentTorneo = null; 
+  adminPin = null; 
+  document.getElementById('dashboardScreen').classList.add('hidden'); 
+  document.getElementById('loginScreen').classList.remove('hidden'); 
 }
 
 function switchAdminTab(tab) {
-  document.getElementById('tabNav-squadre').classList.remove('active');
-  document.getElementById('tabNav-partite').classList.remove('active');
-  document.getElementById('tabNav-settings').classList.remove('active');
-  document.getElementById('subScreen-squadre').classList.add('hidden');
-  document.getElementById('subScreen-partite').classList.add('hidden');
-  document.getElementById('subScreen-settings').classList.add('hidden');
-
-  document.getElementById(`tabNav-${tab}`).classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('[id^="subScreen-"]').forEach(s => s.classList.add('hidden'));
+  
+  document.getElementById(`tabNav-${tab}`).classList.add('active'); 
   document.getElementById(`subScreen-${tab}`).classList.remove('hidden');
-
-  if(tab === 'squadre') caricaSquadre();
+  
+  if(tab === 'squadre') caricaSquadre(); 
   if(tab === 'partite') { caricaSquadrePerSelezionatore(); caricaPartite(); }
 }
 
-// === API 3: IMPOSTAZIONI TORNEO (Nuovo) ===
 function popolaCampiImpostazioni() {
-  document.getElementById('editNome').value = currentTorneo.nome;
+  document.getElementById('editNome').value = currentTorneo.nome; 
   document.getElementById('editSlug').value = currentTorneo.slug;
-  document.getElementById('editLogo').value = currentTorneo.logo_url || '';
+  document.getElementById('editLogo').value = currentTorneo.logo_url || ''; 
   document.getElementById('editCol1').value = currentTorneo.colore_primario;
-  document.getElementById('editCol2').value = currentTorneo.colore_secondario;
-  document.getElementById('editPinOrg').value = currentTorneo.pin_organizzatore || '1234';
+  document.getElementById('editCol2').value = currentTorneo.colore_secondario; 
+  document.getElementById('editPinOrg').value = '*** (Nascosto)';
 }
 
+// Helper per instradare le azioni ADMIN al buttafuori Supabase (RPC sicura)
+function eseguiAdminAzione(payload) {
+  payload.p_torneo_id = currentTorneo.id; 
+  payload.p_pin = adminPin;
+  return fetch(`${SUPABASE_URL}/rest/v1/rpc/admin_azioni`, { method: "POST", headers: HEADERS, body: JSON.stringify(payload) })
+    .then(res => { if(!res.ok) throw new Error("Errore Auth"); return res.json(); });
+}
+
+// === API 3: IMPOSTAZIONI TORNEO ===
 function salvaImpostazioniTorneo() {
-  const payload = {
-    nome: document.getElementById('editNome').value.trim(),
-    slug: document.getElementById('editSlug').value.trim().toLowerCase(),
-    logo_url: document.getElementById('editLogo').value.trim(),
-    colore_primario: document.getElementById('editCol1').value.trim(),
-    colore_secondario: document.getElementById('editCol2').value.trim(),
-    pin_organizzatore: document.getElementById('editPinOrg').value.trim()
+  let p_org = document.getElementById('editPinOrg').value.trim();
+  if(p_org === '*** (Nascosto)') { showToast("Devi inserire un nuovo PIN per salvare", true); return; }
+  
+  const payload = { 
+    p_azione: 'UPDATE', 
+    p_tabella: 'impostazioni', 
+    p_nome: document.getElementById('editNome').value.trim(), 
+    p_slug: document.getElementById('editSlug').value.trim().toLowerCase(), 
+    p_logo: document.getElementById('editLogo').value.trim(), 
+    p_col1: document.getElementById('editCol1').value.trim(), 
+    p_col2: document.getElementById('editCol2').value.trim(), 
+    p_pin_org: p_org 
   };
-
-  fetch(`${SUPABASE_URL}/rest/v1/tornei?id=eq.${currentTorneo.id}`, { method: "PATCH", headers: HEADERS, body: JSON.stringify(payload) })
-    .then(res => {
-      if(!res.ok) throw new Error("Errore Salvataggio");
-      showToast("Impostazioni aggiornate!");
-      currentTorneo = { ...currentTorneo, ...payload };
-      document.getElementById('managedTorneoTitle').textContent = `${currentTorneo.nome.toUpperCase()} (${currentTorneo.formato})`;
+  
+  eseguiAdminAzione(payload)
+    .then(() => { 
+      showToast("Impostazioni salvate!"); 
+      document.getElementById('managedTorneoTitle').textContent = payload.p_nome.toUpperCase(); 
+      currentTorneo.slug = payload.p_slug; 
     })
-    .catch(() => showToast("Errore di connessione o slug già usato", true));
+    .catch(() => showToast("Errore salvataggio (Slug forse già in uso)", true));
 }
 
-// === API 4: GESTIONE SQUADRE (Carica, Aggiungi, ELIMINA, MODIFICA) ===
+// === API 4: GESTIONE SQUADRE ===
 function caricaSquadre() {
-  fetch(`${SUPABASE_URL}/rest/v1/squadre?torneo_id=eq.${currentTorneo.id}&order=nome.asc`, { method: "GET", headers: HEADERS })
+  // Lettura pubblica permessa
+  fetch(`${SUPABASE_URL}/rest/v1/squadre?torneo_id=eq.${currentTorneo.id}&order=nome.asc`, { headers: HEADERS })
     .then(res => res.json())
     .then(data => {
-      squadreLocali = data;
-      document.getElementById('teamCount').textContent = data.length;
+      squadreLocali = data; 
+      document.getElementById('teamCount').textContent = data.length; 
       const container = document.getElementById('squadreListContainer');
       
       if(data.length === 0) { container.innerHTML = `<p style="color:var(--muted); text-align:center;">Nessuna squadra creata.</p>`; return; }
@@ -401,74 +412,70 @@ function caricaSquadre() {
           </div>
         </div>
       `).join('');
-    });
+  });
 }
 
 function aggiungiSquadra() {
-  const nome = document.getElementById('teamNome').value.trim();
-  const girone = currentTorneo.formato === 'UNICO' ? 'UNICO' : document.getElementById('teamGirone').value;
-
-  if(!nome) { showToast("Inserisci il nome della squadra", true); return; }
-
-  const payload = { torneo_id: currentTorneo.id, nome: nome, girone: girone };
-  fetch(`${SUPABASE_URL}/rest/v1/squadre`, { method: "POST", headers: HEADERS, body: JSON.stringify(payload) })
-    .then(() => {
-      showToast("Squadra aggiunta!");
-      document.getElementById('teamNome').value = '';
-      caricaSquadre();
-    });
+  const payload = { 
+    p_azione: 'INSERT', 
+    p_tabella: 'squadre', 
+    p_nome: document.getElementById('teamNome').value.trim(), 
+    p_girone: currentTorneo.formato === 'UNICO' ? 'UNICO' : document.getElementById('teamGirone').value 
+  };
+  
+  if(!payload.p_nome) { showToast("Inserisci il nome", true); return; }
+  
+  eseguiAdminAzione(payload).then(() => { 
+    showToast("Squadra aggiunta!"); 
+    document.getElementById('teamNome').value = ''; 
+    caricaSquadre(); 
+  }).catch(() => showToast("Errore", true));
 }
 
-function modificaSquadra(id, vecchioNome, vecchioGirone) {
-  let nuovoNome = prompt("Rinomina squadra:", vecchioNome);
-  if (nuovoNome === null || nuovoNome.trim() === "") return;
+function modificaSquadra(id, oldNome, oldGirone) {
+  let nome = prompt("Rinomina squadra:", oldNome); 
+  if(!nome || !nome.trim()) return;
   
-  let nuovoGirone = vecchioGirone;
-  if(currentTorneo.formato !== 'UNICO') {
-    let inputGirone = prompt("Modifica Girone (A, B, C, D):", vecchioGirone);
-    if(inputGirone !== null) nuovoGirone = inputGirone.trim().toUpperCase();
+  let gir = oldGirone; 
+  if(currentTorneo.formato !== 'UNICO') { 
+    let inG = prompt("Modifica Girone:", oldGirone); 
+    if(inG) gir = inG.trim().toUpperCase(); 
   }
-
-  const payload = { nome: nuovoNome.trim(), girone: nuovoGirone };
-  fetch(`${SUPABASE_URL}/rest/v1/squadre?id=eq.${id}`, { method: "PATCH", headers: HEADERS, body: JSON.stringify(payload) })
-    .then(() => { 
-      showToast("Squadra aggiornata!"); 
-      caricaSquadre(); 
-    });
+  
+  eseguiAdminAzione({ p_azione: 'UPDATE', p_tabella: 'squadre', p_id: id, p_nome: nome.trim(), p_girone: gir })
+    .then(() => { showToast("Aggiornata!"); caricaSquadre(); })
+    .catch(() => showToast("Errore", true));
 }
 
 function eliminaSquadra(id) {
-  if(!confirm("Sicuro di voler eliminare questa squadra? Verra cancellata dal torneo.")) return;
-  fetch(`${SUPABASE_URL}/rest/v1/squadre?id=eq.${id}`, { method: "DELETE", headers: HEADERS })
-    .then(() => { showToast("Squadra eliminata"); caricaSquadre(); });
+  if(!confirm("Sicuro di voler eliminare questa squadra?")) return;
+  eseguiAdminAzione({ p_azione: 'DELETE', p_tabella: 'squadre', p_id: id })
+    .then(() => { showToast("Eliminata"); caricaSquadre(); })
+    .catch(() => showToast("Errore", true));
 }
 
 // === API 5: GESTIONE CALENDARIO PARTITE ===
 function caricaSquadrePerSelezionatore() {
-  const selA = document.getElementById('matchSquadraA');
-  const selB = document.getElementById('matchSquadraB');
-  const opzioni = squadreLocali.map(s => `<option value="${s.nome}">${s.nome} (${s.girone})</option>`).join('');
-  selA.innerHTML = opzioni;
-  selB.innerHTML = opzioni;
+  const opz = squadreLocali.map(s => `<option value="${s.nome}">${s.nome} (${s.girone})</option>`).join('');
+  document.getElementById('matchSquadraA').innerHTML = opz; 
+  document.getElementById('matchSquadraB').innerHTML = opz;
 }
 
 function caricaPartite() {
-  fetch(`${SUPABASE_URL}/rest/v1/partite?torneo_id=eq.${currentTorneo.id}&order=created_at.asc`, { method: "GET", headers: HEADERS })
+  // Lettura pubblica permessa
+  fetch(`${SUPABASE_URL}/rest/v1/partite?torneo_id=eq.${currentTorneo.id}&order=created_at.asc`, { headers: HEADERS })
     .then(res => res.json())
     .then(data => {
       const container = document.getElementById('partiteListContainer');
       if(data.length === 0) { container.innerHTML = `<p style="color:var(--muted); text-align:center;">Nessuna partita programmata.</p>`; return; }
-
+      
       container.innerHTML = data.map(p => {
-        let statoTesto = "🕒 Da Giocare";
-        if(p.stato === 'LIVE') statoTesto = "🔴 LIVE";
-        if(p.stato === 'TERMINATA') statoTesto = "✅ Finita";
-
+        let st = p.stato === 'LIVE' ? "🔴 LIVE" : (p.stato === 'TERMINATA' ? "✅ Finita" : "🕒 Da Giocare");
         return `
           <div class="item-row" style="flex-direction:column; align-items:stretch; gap:10px;">
             <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted);">
               <span>📅 ${p.data} - 🕒 ${p.orario} | Fase: <b>${p.girone_fase}</b></span>
-              <span style="font-weight:bold; color:var(--primary);">${statoTesto}</span>
+              <span style="font-weight:bold; color:var(--primary);">${st}</span>
             </div>
             <div style="font-size:18px; font-weight:bold; text-align:center; margin:5px 0;">
               ${p.squadra_a} <span style="color:var(--primary); margin:0 10px;">${p.gol_a !== '' ? p.gol_a + ' - ' + p.gol_b : 'VS'}</span> ${p.squadra_b}
@@ -484,65 +491,64 @@ function caricaPartite() {
 }
 
 function aggiungiPartita() {
-  const data = document.getElementById('matchData').value.trim();
-  const orario = document.getElementById('matchOrario').value.trim();
-  const sqA = document.getElementById('matchSquadraA').value;
-  const sqB = document.getElementById('matchSquadraB').value;
-  let fase = document.getElementById('matchFase').value.trim().toUpperCase();
-
-  if(currentTorneo.formato === 'UNICO' && !fase) fase = "CAMPIONATO";
-  if(!data || !orario || !sqA || !sqB || !fase) { showToast("Compila tutti i campi della partita", true); return; }
-  if(sqA === sqB) { showToast("Una squadra non può giocare contro se stessa!", true); return; }
-
-  const payload = { torneo_id: currentTorneo.id, data: data, orario: orario, squadra_a: sqA, squadra_b: sqB, girone_fase: fase, stato: "DA_GIOCARE" };
+  const payload = { 
+    p_azione: 'INSERT', 
+    p_tabella: 'partite', 
+    p_data: document.getElementById('matchData').value.trim(), 
+    p_orario: document.getElementById('matchOrario').value.trim(), 
+    p_sqa: document.getElementById('matchSquadraA').value, 
+    p_sqb: document.getElementById('matchSquadraB').value, 
+    p_fase: document.getElementById('matchFase').value.trim().toUpperCase() || 'CAMPIONATO' 
+  };
   
-  fetch(`${SUPABASE_URL}/rest/v1/partite`, { method: "POST", headers: HEADERS, body: JSON.stringify(payload) })
-    .then(() => {
-      showToast("Partita inserita!");
-      document.getElementById('matchData').value = '';
-      document.getElementById('matchOrario').value = '';
-      caricaPartite();
-    });
+  if(!payload.p_data || !payload.p_orario) { showToast("Completa Data e Orario", true); return; }
+  if(payload.p_sqa === payload.p_sqb) { showToast("Una squadra non può sfidare se stessa!", true); return; }
+  
+  eseguiAdminAzione(payload)
+    .then(() => { showToast("Partita inserita!"); caricaPartite(); })
+    .catch(() => showToast("Errore salvataggio", true));
 }
 
 function apriModificaRisultato(id) {
-  fetch(`${SUPABASE_URL}/rest/v1/partite?id=eq.${id}`, { method: "GET", headers: HEADERS })
-    .then(res => res.json())
+  fetch(`${SUPABASE_URL}/rest/v1/partite?id=eq.${id}`, { headers: HEADERS })
+    .then(r=>r.json())
     .then(data => {
       const p = data[0];
-      let nuovoStato = prompt(`Aggiorna STATO partita per ${p.squadra_a} vs ${p.squadra_b}\nScrivi:\nLIVE = per metterla in corso\nTERMINATA = per finirla\n(Lascia vuoto per "Da Giocare")`, p.stato);
-      if(nuovoStato === null) return; 
-      
-      let gA = prompt(`Gol segnati da: ${p.squadra_a}`, p.gol_a);
-      if(gA === null) return;
-      let gB = prompt(`Gol segnati da: ${p.squadra_b}`, p.gol_b);
-      if(gB === null) return;
-      
-      let marA = prompt(`Marcatori di: ${p.squadra_a}\n(Uno per riga, es:\nDonati x2\nPippo)`, p.marcatori_a);
-      if(marA === null) return;
-      let marB = prompt(`Marcatori di: ${p.squadra_b}\n(Uno per riga)`, p.marcatori_b);
-      if(marB === null) return;
-      
-      let note = prompt(`Note (Cartellini, rigori, infortuni...)`, p.note);
-      if(note === null) return;
+      let st = prompt(`Stato (LIVE, TERMINATA, o vuoto per Da Giocare):`, p.stato); if(st === null) return;
+      let ga = prompt(`Gol ${p.squadra_a}:`, p.gol_a); if(ga === null) return;
+      let gb = prompt(`Gol ${p.squadra_b}:`, p.gol_b); if(gb === null) return;
+      let ma = prompt(`Marcatori ${p.squadra_a} (uno a riga):`, p.marcatori_a); if(ma === null) return;
+      let mb = prompt(`Marcatori ${p.squadra_b} (uno a riga):`, p.marcatori_b); if(mb === null) return;
+      let nt = prompt(`Note (Cartellini, ecc.):`, p.note); if(nt === null) return;
 
-      const payload = { stato: nuovoStato.toUpperCase(), gol_a: gA, gol_b: gB, marcatori_a: marA, marcatori_b: marB, note: note };
-
-      fetch(`${SUPABASE_URL}/rest/v1/partite?id=eq.${id}`, { method: "PATCH", headers: HEADERS, body: JSON.stringify(payload) })
-        .then(() => { showToast("Risultato Aggiornato!"); caricaPartite(); });
-    });
+      // Usiamo l'RPC dedicata al salvataggio risultati per gestire il permesso combinato (SuperAdmin o Organizer)
+      fetch(`${SUPABASE_URL}/rest/v1/rpc/salva_risultato`, { 
+        method: "POST", 
+        headers: HEADERS, 
+        body: JSON.stringify({ 
+          p_partita_id: id, p_pin: adminPin, p_stato: st.toUpperCase(), 
+          p_gola: ga, p_golb: gb, p_marca: ma, p_marcb: mb, p_note: nt 
+        })
+      })
+      .then(res => { 
+        if(res.ok) { showToast("Risultato Aggiornato!"); caricaPartite(); } 
+        else { showToast("Accesso negato o Errore", true); }
+      });
+  });
 }
 
 function eliminaPartita(id) {
   if(!confirm("Cancellare questa partita dal calendario?")) return;
-  fetch(`${SUPABASE_URL}/rest/v1/partite?id=eq.${id}`, { method: "DELETE", headers: HEADERS })
-    .then(() => { showToast("Partita rimossa"); caricaPartite(); });
+  eseguiAdminAzione({ p_azione: 'DELETE', p_tabella: 'partite', p_id: id })
+    .then(() => { showToast("Partita rimossa"); caricaPartite(); })
+    .catch(() => showToast("Errore", true));
 }
 
-function showToast(msg, isError = false) {
-  const t = document.getElementById('toast'); t.textContent = msg;
-  t.className = `toast ${isError ? 'error' : ''} show`;
-  setTimeout(() => t.classList.remove('show'), 3000);
+function showToast(msg, err = false) { 
+  const t = document.getElementById('toast'); 
+  t.textContent = msg; 
+  t.className = `toast ${err?'error':''} show`; 
+  setTimeout(() => t.classList.remove('show'), 3000); 
 }
 </script>
 </body>
