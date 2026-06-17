@@ -35,16 +35,18 @@
   .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
   .btn-secondary:hover { background: var(--card); }
   .btn-danger { background: rgba(255,23,68,0.1); border: 1px solid var(--red); color: var(--red); padding: 6px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; width: auto; font-family: inherit; font-weight: bold;}
+  .btn-edit { background: rgba(0,230,118,0.1); border: 1px solid var(--primary); color: var(--primary); padding: 6px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; width: auto; font-family: inherit; font-weight: bold; margin-right: 5px;}
   
   /* TABS MENU INTERNO */
-  .admin-nav { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 25px; }
-  .nav-tab { flex: 1; text-align: center; padding: 12px; font-family: 'Bebas Neue', sans-serif; font-size: 18px; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; }
+  .admin-nav { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 25px; overflow-x: auto;}
+  .nav-tab { flex: 1; text-align: center; padding: 12px; font-family: 'Bebas Neue', sans-serif; font-size: 18px; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; min-width: 120px; white-space: nowrap;}
   .nav-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
   
   /* LISTE */
   .item-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; }
   .item-info { font-weight: 500; }
   .item-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .item-actions { display: flex; align-items: center; }
   
   /* UTILS */
   .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--primary); color: #000; padding: 12px 24px; border-radius: 100px; font-weight: 600; font-size: 14px; transition: transform 0.3s; z-index: 999; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
@@ -58,6 +60,7 @@
   <h1>⚙️ CONSOLE AMMINISTRATORE TORNEI</h1>
   <div class="toast" id="toast"></div>
 
+  <!-- ================= SCHERMATA DI ACCESSO / SCELTA ================= -->
   <div id="loginScreen">
     <div class="box">
       <h2>Accedi a un Torneo Esistente</h2>
@@ -66,8 +69,8 @@
         <input type="text" id="loadSlug" placeholder="es: recchio-2026">
       </div>
       <div class="form-group">
-        <label>PIN Admin del Torneo</label>
-        <input type="password" id="loadPin" placeholder="Inserisci il PIN di quel torneo">
+        <label>PIN SUPER-ADMIN del Torneo</label>
+        <input type="password" id="loadPin" placeholder="Inserisci il PIN principale di questo torneo">
       </div>
       <button class="btn btn-primary" onclick="selezionaTorneo()">🔓 Sblocca e Gestisci</button>
     </div>
@@ -100,23 +103,28 @@
           <input type="text" id="newCol2" value="#d4af37">
         </div>
       </div>
+      <div class="form-group">
+        <label>Formato Competizione</label>
+        <select id="newFormato" onchange="toggleFormatoInfo()">
+          <option value="GIRONI">🏆 Fase a Gironi (A, B, C, D) + Finali</option>
+          <option value="UNICO">🛡️ Girone Unico (Campionato classico)</option>
+        </select>
+      </div>
       <div class="grid-2">
         <div class="form-group">
-          <label>Formato Competizione</label>
-          <select id="newFormato" onchange="toggleFormatoInfo()">
-            <option value="GIRONI">🏆 Fase a Gironi (A, B, C, D) + Finali</option>
-            <option value="UNICO">🛡️ Girone Unico (Campionato classico)</option>
-          </select>
+          <label>PIN SUPER-ADMIN (Per te)</label>
+          <input type="text" id="newPin" placeholder="Accesso totale a questa console">
         </div>
         <div class="form-group">
-          <label>Crea PIN Admin Personale</label>
-          <input type="text" id="newPin" placeholder="Scegli un PIN per questo torneo">
+          <label>PIN ORGANIZZATORE (Per l'App)</label>
+          <input type="text" id="newPinOrg" placeholder="Permette solo l'inserimento dei risultati" value="1234">
         </div>
       </div>
       <button class="btn btn-primary" style="background:#00b0ff;" onclick="creaNuovoTorneo()">🚀 Crea e Pubblica Torneo</button>
     </div>
   </div>
 
+  <!-- ================= SCHERMATA DASHBOARD DI GESTIONE ================= -->
   <div id="dashboardScreen" class="hidden">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
       <h2 id="managedTorneoTitle" style="color: var(--primary); margin:0;">TORNEO SELEZIONATO</h2>
@@ -126,8 +134,10 @@
     <div class="admin-nav">
       <div class="nav-tab active" id="tabNav-squadre" onclick="switchAdminTab('squadre')">👥 SQUADRE</div>
       <div class="nav-tab" id="tabNav-partite" onclick="switchAdminTab('partite')">⚽ CALENDARIO & LIVE</div>
+      <div class="nav-tab" id="tabNav-settings" onclick="switchAdminTab('settings')">⚙️ IMPOSTAZIONI</div>
     </div>
 
+    <!-- SOTTO-SCHERMATA: SQUADRE -->
     <div id="subScreen-squadre">
       <div class="box">
         <h3>Aggiungi Squadra</h3>
@@ -155,6 +165,7 @@
       </div>
     </div>
 
+    <!-- SOTTO-SCHERMATA: CALENDARIO E RISULTATI -->
     <div id="subScreen-partite" class="hidden">
       <div class="box">
         <h3>Crea / Pianifica Partita</h3>
@@ -190,6 +201,43 @@
         <div id="partiteListContainer"></div>
       </div>
     </div>
+
+    <!-- SOTTO-SCHERMATA: IMPOSTAZIONI TORNEO -->
+    <div id="subScreen-settings" class="hidden">
+      <div class="box">
+        <h3>Modifica Impostazioni Torneo</h3>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Nome Torneo</label>
+            <input type="text" id="editNome">
+          </div>
+          <div class="form-group">
+            <label>Slug (Attenzione: cambia il link!)</label>
+            <input type="text" id="editSlug">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>URL Immagine Logo</label>
+          <input type="text" id="editLogo">
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Colore Primario (HEX)</label>
+            <input type="text" id="editCol1">
+          </div>
+          <div class="form-group">
+            <label>Colore Secondario (HEX)</label>
+            <input type="text" id="editCol2">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>PIN Organizzatore (Accesso App per risultati)</label>
+          <input type="text" id="editPinOrg">
+        </div>
+        <button class="btn btn-primary" onclick="salvaImpostazioniTorneo()">💾 Salva Modifiche</button>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -225,10 +273,14 @@ function creaNuovoTorneo() {
   const col2 = document.getElementById('newCol2').value.trim();
   const formato = document.getElementById('newFormato').value;
   const pin = document.getElementById('newPin').value.trim();
+  const pinOrg = document.getElementById('newPinOrg').value.trim();
 
-  if(!slug || !nome || !pin) { showToast("Compila i campi obbligatori (Nome, Codice, PIN)", true); return; }
+  if(!slug || !nome || !pin || !pinOrg) { showToast("Compila i campi obbligatori (Nome, Codice, e i due PIN)", true); return; }
 
-  const payload = { slug: slug, nome: nome, logo_url: logo, colore_primario: col1, colore_secondario: col2, formato: formato, pin_admin: pin };
+  const payload = { 
+    slug: slug, nome: nome, logo_url: logo, colore_primario: col1, 
+    colore_secondario: col2, formato: formato, pin_admin: pin, pin_organizzatore: pinOrg 
+  };
 
   fetch(`${SUPABASE_URL}/rest/v1/tornei`, { method: "POST", headers: HEADERS, body: JSON.stringify(payload) })
     .then(res => res.json())
@@ -249,7 +301,7 @@ function selezionaTorneo() {
   const slug = document.getElementById('loadSlug').value.trim().toLowerCase();
   const pin = document.getElementById('loadPin').value.trim();
 
-  if(!slug || !pin) { showToast("Inserisci codice torneo e PIN", true); return; }
+  if(!slug || !pin) { showToast("Inserisci codice torneo e PIN Super-Admin", true); return; }
 
   fetch(`${SUPABASE_URL}/rest/v1/tornei?slug=eq.${slug}`, { method: "GET", headers: HEADERS })
     .then(res => res.json())
@@ -257,16 +309,19 @@ function selezionaTorneo() {
       if(data.length === 0) { showToast("Torneo non trovato", true); }
       else {
         const torneo = data[0];
-        if(torneo.pin_admin !== pin) { showToast("PIN Errato!", true); return; }
+        // Controllo se ha inserito il pin SuperAdmin
+        if(torneo.pin_admin !== pin) { showToast("PIN Errato o non hai i permessi di SuperAdmin!", true); return; }
         
         currentTorneo = torneo;
+        popolaCampiImpostazioni();
+        
         document.getElementById('managedTorneoTitle').textContent = `${torneo.nome.toUpperCase()} (${torneo.formato})`;
         document.getElementById('gironeSelectGroup').style.display = torneo.formato === 'UNICO' ? 'none' : 'block';
         
         document.getElementById('loginScreen').classList.add('hidden');
         document.getElementById('dashboardScreen').classList.remove('hidden');
         
-        showToast("Accesso effettuato!");
+        showToast("Accesso Super-Admin effettuato!");
         switchAdminTab('squadre');
       }
     });
@@ -281,18 +336,49 @@ function esciDaGestione() {
 function switchAdminTab(tab) {
   document.getElementById('tabNav-squadre').classList.remove('active');
   document.getElementById('tabNav-partite').classList.remove('active');
+  document.getElementById('tabNav-settings').classList.remove('active');
   document.getElementById('subScreen-squadre').classList.add('hidden');
   document.getElementById('subScreen-partite').classList.add('hidden');
+  document.getElementById('subScreen-settings').classList.add('hidden');
 
   document.getElementById(`tabNav-${tab}`).classList.add('active');
-  document.getElementById(`subScreen-${tab}`).classList.remove('active');
   document.getElementById(`subScreen-${tab}`).classList.remove('hidden');
 
   if(tab === 'squadre') caricaSquadre();
   if(tab === 'partite') { caricaSquadrePerSelezionatore(); caricaPartite(); }
 }
 
-// === API 3: GESTIONE SQUADRE (Carica, Aggiungi, Elimina) ===
+// === API 3: IMPOSTAZIONI TORNEO (Nuovo) ===
+function popolaCampiImpostazioni() {
+  document.getElementById('editNome').value = currentTorneo.nome;
+  document.getElementById('editSlug').value = currentTorneo.slug;
+  document.getElementById('editLogo').value = currentTorneo.logo_url || '';
+  document.getElementById('editCol1').value = currentTorneo.colore_primario;
+  document.getElementById('editCol2').value = currentTorneo.colore_secondario;
+  document.getElementById('editPinOrg').value = currentTorneo.pin_organizzatore || '1234';
+}
+
+function salvaImpostazioniTorneo() {
+  const payload = {
+    nome: document.getElementById('editNome').value.trim(),
+    slug: document.getElementById('editSlug').value.trim().toLowerCase(),
+    logo_url: document.getElementById('editLogo').value.trim(),
+    colore_primario: document.getElementById('editCol1').value.trim(),
+    colore_secondario: document.getElementById('editCol2').value.trim(),
+    pin_organizzatore: document.getElementById('editPinOrg').value.trim()
+  };
+
+  fetch(`${SUPABASE_URL}/rest/v1/tornei?id=eq.${currentTorneo.id}`, { method: "PATCH", headers: HEADERS, body: JSON.stringify(payload) })
+    .then(res => {
+      if(!res.ok) throw new Error("Errore Salvataggio");
+      showToast("Impostazioni aggiornate!");
+      currentTorneo = { ...currentTorneo, ...payload };
+      document.getElementById('managedTorneoTitle').textContent = `${currentTorneo.nome.toUpperCase()} (${currentTorneo.formato})`;
+    })
+    .catch(() => showToast("Errore di connessione o slug già usato", true));
+}
+
+// === API 4: GESTIONE SQUADRE (Carica, Aggiungi, ELIMINA, MODIFICA) ===
 function caricaSquadre() {
   fetch(`${SUPABASE_URL}/rest/v1/squadre?torneo_id=eq.${currentTorneo.id}&order=nome.asc`, { method: "GET", headers: HEADERS })
     .then(res => res.json())
@@ -309,7 +395,10 @@ function caricaSquadre() {
             <div class="item-info">${s.nome}</div>
             <div class="item-sub">${currentTorneo.formato === 'UNICO' ? 'Girone Unico' : 'Girone ' + s.girone}</div>
           </div>
-          <button class="btn-danger" onclick="eliminaSquadra('${s.id}')">Elimina</button>
+          <div class="item-actions">
+            <button class="btn-edit" onclick="modificaSquadra('${s.id}', '${s.nome}', '${s.girone}')">Modifica</button>
+            <button class="btn-danger" onclick="eliminaSquadra('${s.id}')">Elimina</button>
+          </div>
         </div>
       `).join('');
     });
@@ -330,13 +419,31 @@ function aggiungiSquadra() {
     });
 }
 
+function modificaSquadra(id, vecchioNome, vecchioGirone) {
+  let nuovoNome = prompt("Rinomina squadra:", vecchioNome);
+  if (nuovoNome === null || nuovoNome.trim() === "") return;
+  
+  let nuovoGirone = vecchioGirone;
+  if(currentTorneo.formato !== 'UNICO') {
+    let inputGirone = prompt("Modifica Girone (A, B, C, D):", vecchioGirone);
+    if(inputGirone !== null) nuovoGirone = inputGirone.trim().toUpperCase();
+  }
+
+  const payload = { nome: nuovoNome.trim(), girone: nuovoGirone };
+  fetch(`${SUPABASE_URL}/rest/v1/squadre?id=eq.${id}`, { method: "PATCH", headers: HEADERS, body: JSON.stringify(payload) })
+    .then(() => { 
+      showToast("Squadra aggiornata!"); 
+      caricaSquadre(); 
+    });
+}
+
 function eliminaSquadra(id) {
   if(!confirm("Sicuro di voler eliminare questa squadra? Verra cancellata dal torneo.")) return;
   fetch(`${SUPABASE_URL}/rest/v1/squadre?id=eq.${id}`, { method: "DELETE", headers: HEADERS })
     .then(() => { showToast("Squadra eliminata"); caricaSquadre(); });
 }
 
-// === API 4: GESTIONE CALENDARIO PARTITE ===
+// === API 5: GESTIONE CALENDARIO PARTITE ===
 function caricaSquadrePerSelezionatore() {
   const selA = document.getElementById('matchSquadraA');
   const selB = document.getElementById('matchSquadraB');
@@ -399,13 +506,12 @@ function aggiungiPartita() {
 }
 
 function apriModificaRisultato(id) {
-  // Trova la partita caricando i dati aggiornati
   fetch(`${SUPABASE_URL}/rest/v1/partite?id=eq.${id}`, { method: "GET", headers: HEADERS })
     .then(res => res.json())
     .then(data => {
       const p = data[0];
       let nuovoStato = prompt(`Aggiorna STATO partita per ${p.squadra_a} vs ${p.squadra_b}\nScrivi:\nLIVE = per metterla in corso\nTERMINATA = per finirla\n(Lascia vuoto per "Da Giocare")`, p.stato);
-      if(nuovoStato === null) return; // annullato
+      if(nuovoStato === null) return; 
       
       let gA = prompt(`Gol segnati da: ${p.squadra_a}`, p.gol_a);
       if(gA === null) return;
