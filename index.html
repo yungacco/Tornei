@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Console Admin - Gestione Tornei 🏆</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0f111a; --surface: #161925; --card: #1f2335; --border: #2e344d;
+    --primary: #00e676; --text: #ffffff; --muted: #787f99; --red: #ff1744; --yellow: #ffd740;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'DM Sans', sans-serif; }
+  body { background: var(--bg); color: var(--text); min-height: 100vh; padding: 20px; padding-bottom: 60px;}
+  .container { max-width: 700px; margin: 0 auto; }
+  
+  h1, h2, h3 { font-family: 'Bebas Neue', sans-serif; letter-spacing: 1px; margin-bottom: 15px; }
+  h1 { color: var(--primary); font-size: 32px; text-align: center; margin-bottom: 25px; }
+  
+  .box { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 25px; margin-bottom: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+  .hidden { display: none !important; }
+  
+  /* FORM ED INPUTS */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; }
+  input, textarea, select { width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px; color: var(--text); font-size: 15px; outline: none; transition: 0.2s; }
+  input:focus, textarea:focus, select:focus { border-color: var(--primary); }
+  textarea { resize: none; min-height: 80px; }
+  
+  /* BOTTONI */
+  .btn { width: 100%; padding: 14px; border: none; border-radius: 10px; font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 1px; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; transition: 0.2s; text-transform: uppercase; }
+  .btn-primary { background: var(--primary); color: #000; }
+  .btn-primary:hover { background: #00c853; }
+  .btn-secondary { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-secondary:hover { background: var(--card); }
+  .btn-danger { background: rgba(255,23,68,0.1); border: 1px solid var(--red); color: var(--red); padding: 6px 12px; font-size: 12px; border-radius: 6px; cursor: pointer; width: auto; font-family: inherit; font-weight: bold;}
+  
+  /* TABS MENU INTERNO */
+  .admin-nav { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 25px; }
+  .nav-tab { flex: 1; text-align: center; padding: 12px; font-family: 'Bebas Neue', sans-serif; font-size: 18px; color: var(--muted); cursor: pointer; border-bottom: 3px solid transparent; }
+  .nav-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+  
+  /* LISTE */
+  .item-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: var(--card); border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; }
+  .item-info { font-weight: 500; }
+  .item-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  
+  /* UTILS */
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(100px); background: var(--primary); color: #000; padding: 12px 24px; border-radius: 100px; font-weight: 600; font-size: 14px; transition: transform 0.3s; z-index: 999; box-shadow: 0 4px 15px rgba(0,0,0,0.3); }
+  .toast.error { background: var(--red); color: #fff; }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h1>⚙️ CONSOLE AMMINISTRATORE TORNEI</h1>
+  <div class="toast" id="toast"></div>
+
+  <div id="loginScreen">
+    <div class="box">
+      <h2>Accedi a un Torneo Esistente</h2>
+      <div class="form-group">
+        <label>Codice Identificativo Torneo (Slug)</label>
+        <input type="text" id="loadSlug" placeholder="es: recchio-2026">
+      </div>
+      <div class="form-group">
+        <label>PIN Admin del Torneo</label>
+        <input type="password" id="loadPin" placeholder="Inserisci il PIN di quel torneo">
+      </div>
+      <button class="btn btn-primary" onclick="selezionaTorneo()">🔓 Sblocca e Gestisci</button>
+    </div>
+
+    <div style="text-align: center; margin: 20px 0; color: var(--muted); font-weight: bold;">OPPURE</div>
+
+    <div class="box">
+      <h2>✨ Crea un Nuovo Torneo</h2>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Nome Torneo</label>
+          <input type="text" id="newNome" placeholder="es: Recchio League 2026">
+        </div>
+        <div class="form-group">
+          <label>Codice Unico (Slug per il Link)</label>
+          <input type="text" id="newSlug" placeholder="es: recchio-2026">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>URL Immagine Logo</label>
+        <input type="text" id="newLogo" placeholder="Incolla il link del logo (Postimg, GitHub...)">
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Colore Primario (HEX)</label>
+          <input type="text" id="newCol1" value="#d32f2f">
+        </div>
+        <div class="form-group">
+          <label>Colore Secondario/Note (HEX)</label>
+          <input type="text" id="newCol2" value="#d4af37">
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Formato Competizione</label>
+          <select id="newFormato" onchange="toggleFormatoInfo()">
+            <option value="GIRONI">🏆 Fase a Gironi (A, B, C, D) + Finali</option>
+            <option value="UNICO">🛡️ Girone Unico (Campionato classico)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Crea PIN Admin Personale</label>
+          <input type="text" id="newPin" placeholder="Scegli un PIN per questo torneo">
+        </div>
+      </div>
+      <button class="btn btn-primary" style="background:#00b0ff;" onclick="creaNuovoTorneo()">🚀 Crea e Pubblica Torneo</button>
+    </div>
+  </div>
+
+  <div id="dashboardScreen" class="hidden">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+      <h2 id="managedTorneoTitle" style="color: var(--primary); margin:0;">TORNEO SELEZIONATO</h2>
+      <button class="btn btn-secondary" style="padding:8px 15px; font-size:14px; width:auto;" onclick="esciDaGestione()">← Esci</button>
+    </div>
+
+    <div class="admin-nav">
+      <div class="nav-tab active" id="tabNav-squadre" onclick="switchAdminTab('squadre')">👥 SQUADRE</div>
+      <div class="nav-tab" id="tabNav-partite" onclick="switchAdminTab('partite')">⚽ CALENDARIO & LIVE</div>
+    </div>
+
+    <div id="subScreen-squadre">
+      <div class="box">
+        <h3>Aggiungi Squadra</h3>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Nome Squadra</label>
+            <input type="text" id="teamNome" placeholder="es: Real Pippo">
+          </div>
+          <div class="form-group" id="gironeSelectGroup">
+            <label>Assegna Girone</label>
+            <select id="teamGirone">
+              <option value="A">Girone A</option>
+              <option value="B">Girone B</option>
+              <option value="C">Girone C</option>
+              <option value="D">Girone D</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="aggiungiSquadra()">➕ Salva Squadra</button>
+      </div>
+      
+      <div class="box">
+        <h3>Squadre Iscritte (<span id="teamCount">0</span>)</h3>
+        <div id="squadreListContainer"></div>
+      </div>
+    </div>
+
+    <div id="subScreen-partite" class="hidden">
+      <div class="box">
+        <h3>Crea / Pianifica Partita</h3>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Data</label>
+            <input type="text" id="matchData" placeholder="es: 12/06">
+          </div>
+          <div class="form-group">
+            <label>Orario</label>
+            <input type="text" id="matchOrario" placeholder="es: 21:00">
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="form-group">
+            <label>Squadra Casa (A)</label>
+            <select id="matchSquadraA"></select>
+          </div>
+          <div class="form-group">
+            <label>Squadra Fuori (B)</label>
+            <select id="matchSquadraB"></select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Fase / Turno</label>
+          <input type="text" id="matchFase" placeholder="es: A (se girone A), oppure OTTAVI, QUARTI, FINALE...">
+        </div>
+        <button class="btn btn-primary" onclick="aggiungiPartita()">📅 Inserisci in Calendario</button>
+      </div>
+
+      <div class="box">
+        <h3>Partite in Calendario</h3>
+        <div id="partiteListContainer"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// CONFIGURAZIONE SUPABASE (INCOLLA QUI I TUOI DATI)
+// ============================================================
+const SUPABASE_URL = "INCOLLA_QUI_IL_TUO_PROJECT_URL";https://rrtpbmdwvgpesqkkdjxr.supabase.co
+const SUPABASE_KEY = "INCOLLA_QUI_LA_TUA_CHIAVE_ANON_PUBLIC";eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJydHBibWR3dmdwZXNxa2tkanhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE3MjE0ODAsImV4cCI6MjA5NzI5NzQ4MH0.HD8thcDsFSBZPrSQGSdO50wDJGmqtDxTKErJeOx7Xzc
+// ============================================================
+
+const HEADERS = {
+  "apikey": SUPABASE_KEY,
+  "Authorization": `Bearer ${SUPABASE_KEY}`,
+  "Content-Type": "application/json",
+  "Prefer": "return=representation"
+};
+
+let currentTorneo = null; 
+let squadreLocali = [];
+
+function toggleFormatoInfo() {
+  const formato = document.getElementById('newFormato').value;
+  document.getElementById('gironeSelectGroup').style.display = formato === 'UNICO' ? 'none' : 'block';
+}
+
+// === API 1: CREA UN NUOVO TORNEO ===
+function creaNuovoTorneo() {
+  const slug = document.getElementById('newSlug').value.trim().toLowerCase();
+  const nome = document.getElementById('newNome').value.trim();
+  const logo = document.getElementById('newLogo').value.trim();
+  const col1 = document.getElementById('newCol1').value.trim();
+  const col2 = document.getElementById('newCol2').value.trim();
+  const formato = document.getElementById('newFormato').value;
+  const pin = document.getElementById('newPin').value.trim();
+
+  if(!slug || !nome || !pin) { showToast("Compila i campi obbligatori (Nome, Codice, PIN)", true); return; }
+
+  const payload = { slug: slug, nome: nome, logo_url: logo, colore_primario: col1, colore_secondario: col2, formato: formato, pin_admin: pin };
+
+  fetch(`${SUPABASE_URL}/rest/v1/tornei`, { method: "POST", headers: HEADERS, body: JSON.stringify(payload) })
+    .then(res => res.json())
+    .then(data => {
+      if(data.error || data.message) { showToast("Errore: Codice già esistente o problema server", true); }
+      else {
+        showToast("🚀 Torneo Creato con successo!");
+        document.getElementById('loadSlug').value = slug;
+        document.getElementById('loadPin').value = pin;
+        selezionaTorneo();
+      }
+    })
+    .catch(() => showToast("Errore di connessione", true));
+}
+
+// === API 2: ACCEDI / SELEZIONA UN TORNEO ===
+function selezionaTorneo() {
+  const slug = document.getElementById('loadSlug').value.trim().toLowerCase();
+  const pin = document.getElementById('loadPin').value.trim();
+
+  if(!slug || !pin) { showToast("Inserisci codice torneo e PIN", true); return; }
+
+  fetch(`${SUPABASE_URL}/rest/v1/tornei?slug=eq.${slug}`, { method: "GET", headers: HEADERS })
+    .then(res => res.json())
+    .then(data => {
+      if(data.length === 0) { showToast("Torneo non trovato", true); }
+      else {
+        const torneo = data[0];
+        if(torneo.pin_admin !== pin) { showToast("PIN Errato!", true); return; }
+        
+        currentTorneo = torneo;
+        document.getElementById('managedTorneoTitle').textContent = `${torneo.nome.toUpperCase()} (${torneo.formato})`;
+        document.getElementById('gironeSelectGroup').style.display = torneo.formato === 'UNICO' ? 'none' : 'block';
+        
+        document.getElementById('loginScreen').classList.add('hidden');
+        document.getElementById('dashboardScreen').classList.remove('hidden');
+        
+        showToast("Accesso effettuato!");
+        switchAdminTab('squadre');
+      }
+    });
+}
+
+function esciDaGestione() {
+  currentTorneo = null;
+  document.getElementById('dashboardScreen').classList.add('hidden');
+  document.getElementById('loginScreen').classList.remove('hidden');
+}
+
+function switchAdminTab(tab) {
+  document.getElementById('tabNav-squadre').classList.remove('active');
+  document.getElementById('tabNav-partite').classList.remove('active');
+  document.getElementById('subScreen-squadre').classList.add('hidden');
+  document.getElementById('subScreen-partite').classList.add('hidden');
+
+  document.getElementById(`tabNav-${tab}`).classList.add('active');
+  document.getElementById(`subScreen-${tab}`).classList.remove('active');
+  document.getElementById(`subScreen-${tab}`).classList.remove('hidden');
+
+  if(tab === 'squadre') caricaSquadre();
+  if(tab === 'partite') { caricaSquadrePerSelezionatore(); caricaPartite(); }
+}
+
+// === API 3: GESTIONE SQUADRE (Carica, Aggiungi, Elimina) ===
+function caricaSquadre() {
+  fetch(`${SUPABASE_URL}/rest/v1/squadres?torneo_id=eq.${currentTorneo.id}&order=nome.asc`, { method: "GET", headers: HEADERS })
+    .then(res => res.json())
+    .then(data => {
+      squadreLocali = data;
+      document.getElementById('teamCount').textContent = data.length;
+      const container = document.getElementById('squadreListContainer');
+      
+      if(data.length === 0) { container.innerHTML = `<p style="color:var(--muted); text-align:center;">Nessuna squadra creata.</p>`; return; }
+      
+      container.innerHTML = data.map(s => `
+        <div class="item-row">
+          <div>
+            <div class="item-info">${s.nome}</div>
+            <div class="item-sub">${currentTorneo.formato === 'UNICO' ? 'Girone Unico' : 'Girone ' + s.girone}</div>
+          </div>
+          <button class="btn-danger" onclick="eliminaSquadra('${s.id}')">Elimina</button>
+        </div>
+      `).join('');
+    });
+}
+
+function aggiungiSquadra() {
+  const nome = document.getElementById('teamNome').value.trim();
+  const girone = currentTorneo.formato === 'UNICO' ? 'UNICO' : document.getElementById('teamGirone').value;
+
+  if(!nome) { showToast("Inserisci il nome della squadra", true); return; }
+
+  const payload = { torneo_id: currentTorneo.id, nome: nome, girone: girone };
+  fetch(`${SUPABASE_URL}/rest/v1/squadres`, { method: "POST", headers: HEADERS, body: JSON.stringify(payload) })
+    .then(() => {
+      showToast("Squadra aggiunta!");
+      document.getElementById('teamNome').value = '';
+      caricaSquadre();
+    });
+}
+
+function eliminaSquadra(id) {
+  if(!confirm("Sicuro di voler eliminare questa squadra? Verra cancellata dal torneo.")) return;
+  fetch(`${SUPABASE_URL}/rest/v1/squadres?id=eq.${id}`, { method: "DELETE", headers: HEADERS })
+    .then(() => { showToast("Squadra eliminata"); caricaSquadre(); });
+}
+
+// === API 4: GESTIONE CALENDARIO PARTITE ===
+function caricaSquadrePerSelezionatore() {
+  const selA = document.getElementById('matchSquadraA');
+  const selB = document.getElementById('matchSquadraB');
+  const opzioni = squadreLocali.map(s => `<option value="${s.nome}">${s.nome} (${s.girone})</option>`).join('');
+  selA.innerHTML = opzioni;
+  selB.innerHTML = opzioni;
+}
+
+function caricaPartite() {
+  fetch(`${SUPABASE_URL}/rest/v1/partites?torneo_id=eq.${currentTorneo.id}&order=created_at.asc`, { method: "GET", headers: HEADERS })
+    .then(res => res.json())
+    .then(data => {
+      const container = document.getElementById('partiteListContainer');
+      if(data.length === 0) { container.innerHTML = `<p style="color:var(--muted); text-align:center;">Nessuna partita programmata.</p>`; return; }
+
+      container.innerHTML = data.map(p => {
+        let statoTesto = "🕒 Da Giocare";
+        if(p.stato === 'LIVE') statoTesto = "🔴 LIVE";
+        if(p.stato === 'TERMINATA') statoTesto = "✅ Finita";
+
+        return `
+          <div class="item-row" style="flex-direction:column; align-items:stretch; gap:10px;">
+            <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--muted);">
+              <span>📅 ${p.data} - 🕒 ${p.orario} | Fase: <b>${p.girone_fase}</b></span>
+              <span style="font-weight:bold; color:var(--primary);">${statoTesto}</span>
+            </div>
+            <div style="font-size:18px; font-weight:bold; text-align:center; margin:5px 0;">
+              ${p.squadra_a} <span style="color:var(--primary); margin:0 10px;">${p.gol_a !== '' ? p.gol_a + ' - ' + p.gol_b : 'VS'}</span> ${p.squadra_b}
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:5px;">
+              <button class="btn" style="font-size:12px; padding:6px; background:var(--surface);" onclick="apriModificaRisultato('${p.id}')">✏️ Inserisci / Modifica Risultato</button>
+              <button class="btn-danger" style="width:100%; border-radius:10px;" onclick="eliminaPartita('${p.id}')">🗑️ Rimuovi</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    });
+}
+
+function aggiungiPartita() {
+  const data = document.getElementById('matchData').value.trim();
+  const orario = document.getElementById('matchOrario').value.trim();
+  const sqA = document.getElementById('matchSquadraA').value;
+  const sqB = document.getElementById('matchSquadraB').value;
+  let fase = document.getElementById('matchFase').value.trim().toUpperCase();
+
+  if(currentTorneo.formato === 'UNICO' && !fase) fase = "CAMPIONATO";
+  if(!data || !orario || !sqA || !sqB || !fase) { showToast("Compila tutti i campi della partita", true); return; }
+  if(sqA === sqB) { showToast("Una squadra non può giocare contro se stessa!", true); return; }
+
+  const payload = { torneo_id: currentTorneo.id, data: data, orario: orario, squadra_a: sqA, squadra_b: sqB, girone_fase: fase, stato: "DA_GIOCARE" };
+  
+  fetch(`${SUPABASE_URL}/rest/v1/partites`, { method: "POST", headers: HEADERS, body: JSON.stringify(payload) })
+    .then(() => {
+      showToast("Partita inserita!");
+      document.getElementById('matchData').value = '';
+      document.getElementById('matchOrario').value = '';
+      caricaPartite();
+    });
+}
+
+function apriModificaRisultato(id) {
+  // Trova la partita caricando i dati aggiornati
+  fetch(`${SUPABASE_URL}/rest/v1/partites?id=eq.${id}`, { method: "GET", headers: HEADERS })
+    .then(res => res.json())
+    .then(data => {
+      const p = data[0];
+      let nuovoStato = prompt(`Aggiorna STATO partita per ${p.squadra_a} vs ${p.squadra_b}\nScrivi:\nLIVE = per metterla in corso\nTERMINATA = per finirla\n(Lascia vuoto per "Da Giocare")`, p.stato);
+      if(nuovoStato === null) return; // annullato
+      
+      let gA = prompt(`Gol segnati da: ${p.squadra_a}`, p.gol_a);
+      if(gA === null) return;
+      let gB = prompt(`Gol segnati da: ${p.squadra_b}`, p.gol_b);
+      if(gB === null) return;
+      
+      let marA = prompt(`Marcatori di: ${p.squadra_a}\n(Uno per riga, es:\nDonati x2\nPippo)`, p.marcatori_a);
+      if(marA === null) return;
+      let marB = prompt(`Marcatori di: ${p.squadra_b}\n(Uno per riga)`, p.marcatori_b);
+      if(marB === null) return;
+      
+      let note = prompt(`Note (Cartellini, rigori, infortuni...)`, p.note);
+      if(note === null) return;
+
+      const payload = { stato: nuovoStato.toUpperCase(), gol_a: gA, gol_b: gB, marcatori_a: marA, marcatori_b: marB, note: note };
+
+      fetch(`${SUPABASE_URL}/rest/v1/partites?id=eq.${id}`, { method: "PATCH", headers: HEADERS, body: JSON.stringify(payload) })
+        .then(() => { showToast("Risultato Aggiornato!"); caricaPartite(); });
+    });
+}
+
+function eliminaPartita(id) {
+  if(!confirm("Cancellare questa partita dal calendario?")) return;
+  fetch(`${SUPABASE_URL}/rest/v1/partites?id=eq.${id}`, { method: "DELETE", headers: HEADERS })
+    .then(() => { showToast("Partita rimossa"); caricaPartite(); });
+}
+
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast'); t.textContent = msg;
+  t.className = `toast ${isError ? 'error' : ''} show`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+</script>
+</body>
+</html>
